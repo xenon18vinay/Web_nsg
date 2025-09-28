@@ -1,1 +1,3 @@
-Flask , ultralytics, opencv-python-headless
+Flask
+ultralytics
+opencv-python
