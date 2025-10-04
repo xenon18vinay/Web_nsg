@@ -4,13 +4,126 @@ import numpy as np
 from ultralytics import YOLO
 import subprocess
 import shutil
+import torch
 
 
-def run_yolo_inference_on_frame(model, frame):
-    """Runs YOLO inference on a single frame."""
-    results = model(frame, verbose=False)
-    processed_frame = results[0].plot()
-    return processed_frame
+def check_gpu_availability():
+    """Check GPU availability and return device info"""
+    if torch.cuda.is_available():
+        gpu_count = torch.cuda.device_count()
+        gpu_name = torch.cuda.get_device_name(0) if gpu_count > 0 else "Unknown"
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3 if gpu_count > 0 else 0
+        return {
+            'available': True,
+            'count': gpu_count,
+            'name': gpu_name,
+            'memory_gb': round(gpu_memory, 1),
+            'device': 'cuda'
+        }
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        # Apple Silicon GPU support
+        return {
+            'available': True,
+            'count': 1,
+            'name': 'Apple Silicon GPU',
+            'memory_gb': 'Shared',
+            'device': 'mps'
+        }
+    else:
+        return {
+            'available': False,
+            'count': 0,
+            'name': 'CPU Only',
+            'memory_gb': 0,
+            'device': 'cpu'
+        }
+
+
+def load_yolo_model_with_gpu(model_path, device='auto'):
+    """Load YOLO model with GPU optimization"""
+    try:
+        gpu_info = check_gpu_availability()
+
+        if device == 'auto':
+            if gpu_info['available']:
+                device = gpu_info['device']
+                print(f"🚀 GPU detected: {gpu_info['name']}")
+                print(f"📊 GPU memory: {gpu_info['memory_gb']} GB")
+                print(f"🎯 Using device: {device}")
+            else:
+                device = 'cpu'
+                print("⚠️ No GPU detected, falling back to CPU")
+                print("   For faster processing, consider:")
+                print("   - Installing CUDA for NVIDIA GPUs")
+                print("   - Using Apple Silicon Mac for MPS support")
+
+        # Load model
+        print(f"🔄 Loading YOLO model from: {model_path}")
+        model = YOLO(model_path)
+
+        # Move model to specified device
+        model.to(device)
+
+        # Optimize model for inference
+        if device != 'cpu':
+            print("⚡ Optimizing model for GPU inference...")
+            # Enable half precision for faster inference on supported GPUs
+            if device == 'cuda':
+                try:
+                    model.model.half()
+                    print("✅ Half precision (FP16) enabled for faster inference")
+                except:
+                    print("⚠️ Half precision not supported, using FP32")
+
+        print(f"✅ Model loaded successfully on {device.upper()}")
+        return model, device
+
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
+        print("🔄 Falling back to CPU...")
+        model = YOLO(model_path)
+        return model, 'cpu'
+
+
+def run_yolo_inference_on_frame(model, frame, device='cpu'):
+    """Runs YOLO inference on a single frame with GPU optimization"""
+    try:
+        # Run inference with device specification
+        results = model(frame, verbose=False, device=device)
+        processed_frame = results[0].plot()
+        return processed_frame
+    except Exception as e:
+        print(f"⚠️ GPU inference failed, falling back to CPU: {e}")
+        # Fallback to CPU inference
+        results = model(frame, verbose=False, device='cpu')
+        processed_frame = results[0].plot()
+        return processed_frame
+
+
+def run_batch_inference(model, frames_batch, device='cpu'):
+    """Run YOLO inference on a batch of frames for better GPU utilization"""
+    try:
+        if len(frames_batch) == 1:
+            return [run_yolo_inference_on_frame(model, frames_batch[0], device)]
+
+        # Batch processing for better GPU utilization
+        results = model(frames_batch, verbose=False, device=device)
+        processed_frames = []
+
+        for result in results:
+            processed_frame = result.plot()
+            processed_frames.append(processed_frame)
+
+        return processed_frames
+
+    except Exception as e:
+        print(f"⚠️ Batch inference failed, processing individually: {e}")
+        # Fallback to individual processing
+        processed_frames = []
+        for frame in frames_batch:
+            processed_frame = run_yolo_inference_on_frame(model, frame, device)
+            processed_frames.append(processed_frame)
+        return processed_frames
 
 
 def check_ffmpeg():
@@ -129,18 +242,45 @@ def fallback_opencv_writer(frames, output_path, fps, frame_size):
     return None
 
 
-def process_video(input_path, output_path, model_path, frame_skip=2, target_width=None, output_fps=30):
+def process_video(input_path, output_path, model_path, target_width=None, output_fps=30, device='auto', batch_size=4):
     """
-    Process video with YOLO and create browser-compatible output
+    Process video with YOLO using GPU acceleration and create browser-compatible output
+
+    Args:
+        input_path: Path to input video
+        output_path: Path for output video
+        model_path: Path to YOLO model
+        target_width: Resize width for processing (None to keep original)
+        output_fps: Output video FPS
+        device: Device to use ('auto', 'cuda', 'mps', 'cpu')
+        batch_size: Number of frames to process in batch for GPU optimization
     """
     cap = None
 
     try:
         print("\n" + "=" * 60)
-        print(f"--- BROWSER-COMPATIBLE VIDEO PROCESSING ---")
+        print(f"--- GPU-ACCELERATED VIDEO PROCESSING ---")
         print(f"Input: {input_path}")
         print(f"Output: {output_path}")
         print("=" * 60)
+
+        # Check GPU availability and load model
+        gpu_info = check_gpu_availability()
+        print(f"🖥️ System Info:")
+        print(f"   GPU Available: {gpu_info['available']}")
+        if gpu_info['available']:
+            print(f"   GPU: {gpu_info['name']}")
+            print(f"   Memory: {gpu_info['memory_gb']} GB")
+
+        # Load YOLO model with GPU support
+        model, actual_device = load_yolo_model_with_gpu(model_path, device)
+
+        # Adjust batch size based on device
+        if actual_device == 'cpu':
+            batch_size = 1  # No batching for CPU
+            print("💻 CPU processing: Processing every frame individually")
+        else:
+            print(f"🚀 GPU processing: batch_size={batch_size}, processing every frame")
 
         # Check if ffmpeg is available
         has_ffmpeg = check_ffmpeg()
@@ -148,13 +288,6 @@ def process_video(input_path, output_path, model_path, frame_skip=2, target_widt
             print("✅ FFmpeg is available (best compatibility)")
         else:
             print("⚠️ FFmpeg not found, using OpenCV fallback (limited compatibility)")
-            print("   For best results, install FFmpeg:")
-            print("   Windows: Download from https://ffmpeg.org/")
-            print("   Linux: sudo apt install ffmpeg")
-            print("   Mac: brew install ffmpeg")
-
-        # Load YOLO model
-        model = YOLO(model_path)
 
         # Open input video
         cap = cv2.VideoCapture(input_path)
@@ -188,9 +321,9 @@ def process_video(input_path, output_path, model_path, frame_skip=2, target_widt
         frames = []
         frame_index = 0
         processed_frame_count = 0
-        last_processed_frame = None
+        frame_batch = []
 
-        print("🚀 Processing frames...")
+        print("🚀 Processing every frame with GPU acceleration for smooth video...")
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -200,20 +333,35 @@ def process_video(input_path, output_path, model_path, frame_skip=2, target_widt
             # Ensure consistent frame size
             frame = cv2.resize(frame, (original_width, original_height))
 
-            # Process with YOLO every frame_skip frames
-            if frame_index % frame_skip == 0:
-                if target_width is not None and target_width > 0:
-                    resized_frame = cv2.resize(frame, (processing_width, processing_height))
-                    processed_resized_frame = run_yolo_inference_on_frame(model, resized_frame)
-                    last_processed_frame = cv2.resize(processed_resized_frame, (original_width, original_height))
+            # Prepare frame for processing
+            processing_frame = frame
+            if target_width is not None and target_width > 0:
+                processing_frame = cv2.resize(frame, (processing_width, processing_height))
+
+            # Add to batch for processing
+            frame_batch.append(processing_frame)
+
+            # Process batch when full or at end of video
+            if len(frame_batch) >= batch_size or frame_index == total_frames - 1:
+                if actual_device != 'cpu' and len(frame_batch) > 1:
+                    # GPU batch processing
+                    processed_batch = run_batch_inference(model, frame_batch, actual_device)
                 else:
-                    last_processed_frame = run_yolo_inference_on_frame(model, frame)
+                    # Individual processing for CPU or single frames
+                    processed_batch = []
+                    for batch_frame in frame_batch:
+                        processed_frame = run_yolo_inference_on_frame(model, batch_frame, actual_device)
+                        processed_batch.append(processed_frame)
 
-                processed_frame_count += 1
+                # Add processed frames to output
+                for processed_frame in processed_batch:
+                    if target_width is not None and target_width > 0:
+                        processed_frame = cv2.resize(processed_frame, (original_width, original_height))
 
-            # Store frame for output
-            output_frame = last_processed_frame if last_processed_frame is not None else frame
-            frames.append(output_frame.copy())
+                    frames.append(processed_frame.copy())
+                    processed_frame_count += 1
+
+                frame_batch = []  # Clear batch
 
             frame_index += 1
 
@@ -226,9 +374,15 @@ def process_video(input_path, output_path, model_path, frame_skip=2, target_widt
         cap.release()
         cap = None
 
-        print(f"✅ Processed {len(frames)} frames total")
+        print(f"✅ Processed {len(frames)} frames total (GPU-accelerated: {processed_frame_count})")
 
-        # Create output video
+        # Clear GPU memory if used
+        if actual_device != 'cpu':
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                print("🗑️ GPU memory cache cleared")
+
+        # Create output video (keeping all existing codec logic)
         if has_ffmpeg:
             # Use ffmpeg for best compatibility
             output_file = create_browser_compatible_video(frames, output_path, output_fps)
@@ -255,6 +409,7 @@ def process_video(input_path, output_path, model_path, frame_skip=2, target_widt
                 if ret and test_frame is not None:
                     print(f"✅ Video verification: {test_frames} frames @ {test_fps} FPS")
                     print(f"✅ Video codec: H.264/AVC for browser compatibility")
+                    print(f"🚀 Processing completed with {actual_device.upper()} acceleration")
                     return True
                 else:
                     print("⚠️ Video created but cannot read frames")
@@ -275,6 +430,9 @@ def process_video(input_path, output_path, model_path, frame_skip=2, target_widt
     finally:
         if cap:
             cap.release()
+        # Clear GPU memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         print("🏁 Processing complete")
 
 
@@ -321,14 +479,15 @@ def convert_existing_video_to_browser_compatible(input_path, output_path):
 def install_requirements():
     """Check and provide installation instructions for requirements"""
     print("\n" + "=" * 60)
-    print("CHECKING REQUIREMENTS")
+    print("CHECKING REQUIREMENTS FOR GPU PROCESSING")
     print("=" * 60)
 
     # Check Python packages
     required_packages = {
         'cv2': 'opencv-python',
         'ultralytics': 'ultralytics',
-        'numpy': 'numpy'
+        'numpy': 'numpy',
+        'torch': 'torch'
     }
 
     missing_packages = []
@@ -344,23 +503,33 @@ def install_requirements():
         print(f"\n📦 Install missing packages with:")
         print(f"   pip install {' '.join(missing_packages)}")
 
+    # Check GPU support
+    gpu_info = check_gpu_availability()
+    print(f"\n🖥️ GPU Support:")
+    if gpu_info['available']:
+        print(f"✅ GPU detected: {gpu_info['name']}")
+        print(f"📊 Device: {gpu_info['device']}")
+        if gpu_info['device'] == 'cuda':
+            print(f"📊 Memory: {gpu_info['memory_gb']} GB")
+            print("🚀 NVIDIA GPU ready for CUDA acceleration")
+        elif gpu_info['device'] == 'mps':
+            print("🚀 Apple Silicon GPU ready for MPS acceleration")
+    else:
+        print("⚠️ No GPU detected - will use CPU")
+        print("\n📦 For GPU acceleration:")
+        print("   NVIDIA GPU: Install CUDA and PyTorch with CUDA support")
+        print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118")
+        print("   Apple Silicon: PyTorch with MPS support should work automatically")
+
     # Check FFmpeg
     if check_ffmpeg():
-        print("✅ FFmpeg is installed (RECOMMENDED for browser compatibility)")
+        print("\n✅ FFmpeg is installed (RECOMMENDED for browser compatibility)")
     else:
-        print("❌ FFmpeg is not installed (HIGHLY RECOMMENDED)")
+        print("\n❌ FFmpeg is not installed (HIGHLY RECOMMENDED)")
         print("\n📦 Install FFmpeg:")
-        print("   Windows:")
-        print("     1. Download from https://ffmpeg.org/download.html")
-        print("     2. Extract and add to PATH")
-        print("     OR use: winget install ffmpeg")
-        print("   ")
-        print("   Linux (Ubuntu/Debian):")
-        print("     sudo apt update && sudo apt install ffmpeg")
-        print("   ")
-        print("   macOS:")
-        print("     brew install ffmpeg")
-        print("\n⚠️  Without FFmpeg, videos may not play in browsers!")
+        print("   Windows: winget install ffmpeg")
+        print("   Linux: sudo apt install ffmpeg")
+        print("   macOS: brew install ffmpeg")
 
     print("=" * 60 + "\n")
 
@@ -369,10 +538,12 @@ if __name__ == "__main__":
     install_requirements()
 
     # Example usage
-    print("\nExample usage:")
-    print("-------------")
+    print("\nExample usage with GPU:")
+    print("---------------------")
     print("from video_processor import process_video")
-    print("success = process_video('input.mp4', 'output.mp4', 'models/best.pt')")
-    print("\nTo convert existing video to browser format:")
-    print("from video_processor import convert_existing_video_to_browser_compatible")
-    print("convert_existing_video_to_browser_compatible('old_video.avi', 'browser_video.mp4')")
+    print("# Auto-detect best device (GPU/CPU)")
+    print("success = process_video('input.mp4', 'output.mp4', 'models/best.pt', device='auto')")
+    print("\n# Force GPU usage")
+    print("success = process_video('input.mp4', 'output.mp4', 'models/best.pt', device='cuda')")
+    print("\n# Optimize batch size for your GPU")
+    print("success = process_video('input.mp4', 'output.mp4', 'models/best.pt', batch_size=8)")

@@ -3,36 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YOLO Video Processor</title>
+    <title>Hawk-AI Video Processor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .loader {
-            border-top-color: #3498db;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-             0% { transform: rotate(0deg); }
-             100% { transform: rotate(360deg); }
-        }
         video {
             max-width: 100%;
             height: auto;
             background: #000;
         }
+        /* Custom dark colors */
+        .bg-custom-dark { background-color: #1a1a1a; }
+        .border-custom-dark { border-color: #333333; }
+        .text-custom-light-gray { color: #cccccc; }
+        .text-custom-medium-gray { color: #999999; }
+        .bg-custom-button { background-color: #333333; }
+        .hover\:bg-custom-button-hover:hover { background-color: #555555; }
+
+        /* Modified spinner animation */
+        @keyframes custom-spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        .animate-custom-spin {
+            animation: custom-spin 1s linear infinite;
+        }
+        .spinner-border-color {
+            border-top-color: #ffffff; /* White for the active part */
+            border-left-color: #555555; /* Darker gray for the inactive part */
+            border-right-color: #555555;
+            border-bottom-color: #555555;
+        }
+
+        /* Styling for the file input button to make it more prominent and readable */
+        .file-input-custom-style::-webkit-file-upload-button {
+            background-color: #4CAF50; /* A noticeable green for the button */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            font-weight: 500;
+        }
+        .file-input-custom-style::-webkit-file-upload-button:hover {
+            background-color: #45a049;
+        }
+        .file-input-custom-style { /* Styles for the input element itself */
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            background-color: #2a2a2a;
+            color: #ffffff;
+        }
+
+        /* Specific text colors for the loading info */
+        .text-status-green { color: #4CAF50; } /* Keep "High" green */
+        .text-status-white { color: #ffffff; } /* Change others to white */
+
     </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+<body class="bg-black text-custom-light-gray flex items-center justify-center min-h-screen p-4">
 
-    <div id="main-content" class="w-full max-w-3xl mx-auto">
+    <div id="main-content" class="w-full max-w-4xl mx-auto">
         {% if processed_video_filename %}
-        <div class="bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div class="bg-custom-dark border border-custom-dark rounded-lg shadow-2xl p-8">
             <div class="text-center mb-6">
-                <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
-                    Processing Complete!
+                <h1 class="text-3xl font-bold text-white mb-2">
+                    Processing Complete
                 </h1>
                 {% if file_size_mb %}
-                <p class="text-gray-400 mt-2">Video size: {{ file_size_mb }} MB</p>
+                <p class="text-custom-medium-gray">Video size: {{ file_size_mb }} MB</p>
                 {% endif %}
             </div>
 
@@ -40,8 +87,8 @@
                 <video id="processed-video" controls preload="metadata" class="w-full" playsinline>
                     <source src="{{ url_for('static', filename='outputs/' + processed_video_filename) }}" type="video/mp4">
                     <div class="p-8 text-center">
-                        <p class="text-yellow-400 mb-4">⚠️ Your browser cannot play this video directly.</p>
-                        <a href="{{ url_for('download_file', filename=processed_video_filename) }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                        <p class="text-yellow-400 mb-4">Your browser cannot play this video directly.</p>
+                        <a href="{{ url_for('download_file', filename=processed_video_filename) }}" class="inline-block bg-custom-button hover:bg-custom-button-hover text-white font-medium py-2 px-4 rounded transition-colors">
                             Download Video
                         </a>
                     </div>
@@ -49,60 +96,101 @@
             </div>
 
             <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <a href="{{ url_for('download_file', filename=processed_video_filename) }}" download class="w-full sm:w-auto text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                <a href="{{ url_for('download_file', filename=processed_video_filename) }}" download class="w-full sm:w-auto text-center bg-custom-button hover:bg-custom-button-hover text-white font-medium py-3 px-6 rounded transition-colors">
                     Download Video
                 </a>
-                <a href="/" class="w-full sm:w-auto text-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                <a href="/" class="w-full sm:w-auto text-center bg-custom-button hover:bg-custom-button-hover text-white font-medium py-3 px-6 rounded transition-colors">
                     Process Another Video
                 </a>
             </div>
         </div>
 
         {% elif error %}
-        <div class="bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+        <div class="bg-custom-dark border border-red-800 rounded-lg shadow-2xl p-8 text-center">
             <div class="text-red-400 mb-4">
                 <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
-            <h1 class="text-3xl font-bold text-red-400 mb-4">Processing Error</h1>
-            <p class="text-gray-300 mb-6">{{ error }}</p>
-            <a href="/" class="inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition">
+            <h1 class="text-2xl font-bold text-red-400 mb-4">Processing Error</h1>
+            <p class="text-custom-light-gray mb-6">{{ error }}</p>
+            <a href="/" class="inline-block bg-custom-button hover:bg-custom-button-hover text-white font-medium py-3 px-6 rounded transition-colors">
                 Try Again
             </a>
         </div>
 
         {% else %}
-        <div id="upload-container" class="bg-gray-800 rounded-2xl shadow-xl p-8 md:p-12">
+        <div id="upload-container" class="bg-custom-dark border border-custom-dark rounded-lg shadow-2xl p-8 md:p-12">
             <div class="text-center mb-8">
-                <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-3">
-                    YOLO Video Processor
+                <h1 class="text-4xl font-bold text-white mb-3">
+                    Hawk-AI
                 </h1>
-                <p class="text-gray-400">Upload a video for object detection</p>
+                <p class="text-custom-medium-gray text-lg">Prototype 1.3v <br>Feature extraction</p>
+
             </div>
 
             <form id="upload-form" method="post" enctype="multipart/form-data" class="space-y-6">
-                <div class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-500 transition">
-                    <input id="file-input" type="file" name="file" required accept="video/*,.mp4,.avi,.mov,.mkv,.webm" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer">
-                    <p class="text-gray-500 text-sm mt-2">Max 300MB</p>
+                <div class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-gray-600 transition-colors">
+                    <div class="mb-4">
+                        <svg class="w-12 h-12 mx-auto text-custom-medium-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                    </div>
+                    <input id="file-input" type="file" name="file" required accept="video/*,.mp4,.avi,.mov,.mkv,.webm" class="block w-full text-sm text-custom-medium-gray file-input-custom-style">
+                    <p class="text-custom-medium-gray text-sm mt-2">Supported: MP4, AVI, MOV, MKV, WEBM • Max 300MB</p>
                 </div>
-                <div id="file-info" class="hidden bg-gray-900 rounded-lg p-4">
-                    <p class="text-gray-300 text-sm">Selected: <span id="file-name" class="font-semibold text-white"></span></p>
-                    <p class="text-gray-300 text-sm">Size: <span id="file-size" class="font-semibold text-white"></span></p>
+
+                <div id="file-info" class="hidden bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-custom-light-gray text-sm">File: <span id="file-name" class="font-medium text-white"></span></p>
+                            <p class="text-custom-light-gray text-sm">Size: <span id="file-size" class="font-medium text-white"></span></p>
+                        </div>
+                        <div class="text-green-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                    </div>
                 </div>
+
                 <p id="form-error" class="text-red-400 text-sm h-4 text-center"></p>
-                <button type="submit" id="submit-button" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Upload & Process
+
+                <button type="submit" id="submit-button" class="w-full bg-custom-button hover:bg-custom-button-hover text-white font-medium py-4 px-6 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    Start Processing
                 </button>
             </form>
         </div>
         {% endif %}
     </div>
 
-    <div id="loading-container" class="hidden">
-        <div class="text-center">
-            <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-600 h-32 w-32 mx-auto mb-8"></div>
-            <h2 class="text-2xl font-semibold text-gray-300 mb-2">Processing Your Video...</h2>
-            <p class="text-gray-400">This may take a few minutes. Please don't close this window.</p>
+    <div id="loading-container" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4">
+      <div class="text-center">
+        <div class="h-32 w-32 animate-custom-spin rounded-full border-4 spinner-border-color mx-auto mb-8"></div>
+
+        <h2 class="text-2xl font-medium text-white mb-2">Processing Your Video...</h2>
+        <p class="text-custom-medium-gray mb-4">Hardware acceleration for faster results</p>
+
+        <div class="bg-custom-dark border border-custom-dark rounded-lg p-4 max-w-md mx-auto">
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span class="text-custom-light-gray">Detection Quality:</span>
+                    <span class="text-status-green">High</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-custom-light-gray">Processing Speed:</span>
+                    <span class="text-status-white">{% if gpu_info and gpu_info.available %}GPU Accelerated{% else %}CPU Mode{% endif %}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-custom-light-gray">Output Format:</span>
+                    <span class="text-status-white">Browser Compatible</span>
+                </div>
+            </div>
         </div>
+
+        <p class="text-custom-medium-gray text-sm mt-4">Please don't close this window during processing</p>
+      </div>
     </div>
 
     <script>
@@ -118,10 +206,9 @@
                 formError.textContent = '';
                 const file = e.target.files[0];
                 if (file) {
-                    // Check file size (300MB limit)
                     if (file.size > 300 * 1024 * 1024) {
                         formError.textContent = 'File size exceeds 300MB limit.';
-                        e.target.value = ''; // Clear the input
+                        e.target.value = '';
                         fileInfo.classList.add('hidden');
                         submitButton.disabled = true;
                         return;
