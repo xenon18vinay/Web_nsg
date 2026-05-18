@@ -330,30 +330,30 @@ def process_video(input_path, output_path, model_path, target_width=None, output
             if not ret:
                 break
 
-            # Ensure consistent frame size
+
             frame = cv2.resize(frame, (original_width, original_height))
 
-            # Prepare frame for processing
+
             processing_frame = frame
             if target_width is not None and target_width > 0:
                 processing_frame = cv2.resize(frame, (processing_width, processing_height))
 
-            # Add to batch for processing
+
             frame_batch.append(processing_frame)
 
             # Process batch when full or at end of video
             if len(frame_batch) >= batch_size or frame_index == total_frames - 1:
                 if actual_device != 'cpu' and len(frame_batch) > 1:
-                    # GPU batch processing
+
                     processed_batch = run_batch_inference(model, frame_batch, actual_device)
                 else:
-                    # Individual processing for CPU or single frames
+
                     processed_batch = []
                     for batch_frame in frame_batch:
                         processed_frame = run_yolo_inference_on_frame(model, batch_frame, actual_device)
                         processed_batch.append(processed_frame)
 
-                # Add processed frames to output
+
                 for processed_frame in processed_batch:
                     if target_width is not None and target_width > 0:
                         processed_frame = cv2.resize(processed_frame, (original_width, original_height))
@@ -361,11 +361,11 @@ def process_video(input_path, output_path, model_path, target_width=None, output
                     frames.append(processed_frame.copy())
                     processed_frame_count += 1
 
-                frame_batch = []  # Clear batch
+                frame_batch = []
 
             frame_index += 1
 
-            # Progress update
+
             if frame_index % 30 == 0 or frame_index == total_frames:
                 progress = (frame_index / total_frames) * 100
                 print(f"Progress: {frame_index}/{total_frames} ({progress:.1f}%) | Processed: {processed_frame_count}")
