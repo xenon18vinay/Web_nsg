@@ -1,3 +1,4 @@
+<img width="844" height="1198" alt="Hawk-AI diagram flow" src="https://github.com/user-attachments/assets/921bb7e3-cffb-427a-a5e2-4eb7242be3ef" />
 
 Video Input: Video data will be collected from various sources, such as surveillance cameras, body cams or drones already existing The system will be capable of receiving a wide variety of inputs in different formats.
 Feature Extraction: Computer vision algorithms will extract relevant features from the video frames, such as objects, patterns or activities.
